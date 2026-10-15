@@ -1,0 +1,240 @@
+
+import json
+import os
+
+FILE_NAME = "students.json"
+
+
+def load_students():
+    if os.path.exists(FILE_NAME):
+        try:
+            with open(FILE_NAME, "r") as file:
+                return json.load(file)
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def save_students(students):
+    with open(FILE_NAME, "w") as file:
+        json.dump(students, file, indent=4)
+
+
+def calculate_grade(average):
+    if average >= 90:
+        return "A+"
+    elif average >= 80:
+        return "A"
+    elif average >= 70:
+        return "B"
+    elif average >= 60:
+        return "C"
+    elif average >= 50:
+        return "D"
+    else:
+        return "Fail"
+
+
+def add_student(students):
+    student_id = input("Enter student ID: ").strip()
+
+    if not student_id:
+        print("Student ID cannot be empty.")
+        return
+
+    if student_id in students:
+        print("Student ID already exists!")
+        return
+
+    name = input("Enter student name: ").strip()
+
+    if not name:
+        print("Name cannot be empty.")
+        return
+
+    try:
+        marks = []
+        for subject in ["Python", "Mathematics", "English"]:
+            mark = float(input(f"Enter {subject} marks (0-100): "))
+            if not 0 <= mark <= 100:
+                print("Marks must be between 0 and 100.")
+                return
+            marks.append(mark)
+    except ValueError:
+        print("Please enter valid numbers.")
+        return
+
+    total = sum(marks)
+    average = total / len(marks)
+
+    students[student_id] = {
+        "name": name,
+        "marks": marks,
+        "total": total,
+        "average": round(average, 2),
+        "grade": calculate_grade(average)
+    }
+
+    save_students(students)
+    print("Student added successfully!")
+
+
+def view_students(students):
+    if not students:
+        print("No student records found.")
+        return
+
+    print("\n" + "=" * 65)
+    print(f"{'ID':<12}{'Name':<20}{'Total':<10}{'Average':<12}{'Grade'}")
+    print("=" * 65)
+
+    for student_id, data in students.items():
+        print(
+            f"{student_id:<12}"
+            f"{data['name']:<20}"
+            f"{data['total']:<10.1f}"
+            f"{data['average']:<12.2f}"
+            f"{data['grade']}"
+        )
+
+    print("=" * 65)
+
+
+def search_student(students):
+    student_id = input("Enter student ID to search: ").strip()
+
+    if student_id not in students:
+        print("Student not found.")
+        return
+
+    data = students[student_id]
+
+    print("\n--- Student Details ---")
+    print("ID:", student_id)
+    print("Name:", data["name"])
+    print("Python:", data["marks"][0])
+    print("Mathematics:", data["marks"][1])
+    print("English:", data["marks"][2])
+    print("Total:", data["total"])
+    print("Average:", data["average"])
+    print("Grade:", data["grade"])
+
+
+def update_student(students):
+    student_id = input("Enter student ID to update: ").strip()
+
+    if student_id not in students:
+        print("Student not found.")
+        return
+
+    data = students[student_id]
+    print("Current name:", data["name"])
+
+    new_name = input("Enter new name (press Enter to keep): ").strip()
+    if new_name:
+        data["name"] = new_name
+
+    try:
+        for i, subject in enumerate(
+            ["Python", "Mathematics", "English"]
+        ):
+            value = input(
+                f"New {subject} marks "
+                f"(press Enter to keep {data['marks'][i]}): "
+            ).strip()
+
+            if value:
+                mark = float(value)
+                if not 0 <= mark <= 100:
+                    print("Marks must be between 0 and 100.")
+                    return
+                data["marks"][i] = mark
+
+    except ValueError:
+        print("Invalid marks entered.")
+        return
+
+    data["total"] = sum(data["marks"])
+    data["average"] = round(data["total"] / 3, 2)
+    data["grade"] = calculate_grade(data["average"])
+
+    save_students(students)
+    print("Student updated successfully!")
+
+
+def delete_student(students):
+    student_id = input("Enter student ID to delete: ").strip()
+
+    if student_id not in students:
+        print("Student not found.")
+        return
+
+    confirm = input(
+        f"Delete {students[student_id]['name']}? (yes/no): "
+    ).strip().lower()
+
+    if confirm == "yes":
+        del students[student_id]
+        save_students(students)
+        print("Student deleted successfully.")
+    else:
+        print("Deletion cancelled.")
+
+
+def show_statistics(students):
+    if not students:
+        print("No records available.")
+        return
+
+    averages = [data["average"] for data in students.values()]
+
+    topper_id = max(
+        students,
+        key=lambda sid: students[sid]["average"]
+    )
+
+    print("\n--- Class Statistics ---")
+    print("Number of students:", len(students))
+    print("Class average:", round(sum(averages) / len(averages), 2))
+    print("Highest average:", max(averages))
+    print("Lowest average:", min(averages))
+    print("Topper:", students[topper_id]["name"])
+    print("Topper average:", students[topper_id]["average"])
+
+
+def main():
+    students = load_students()
+
+    while True:
+        print("\n===== STUDENT MANAGEMENT SYSTEM =====")
+        print("1. Add Student")
+        print("2. View All Students")
+        print("3. Search Student")
+        print("4. Update Student")
+        print("5. Delete Student")
+        print("6. Class Statistics")
+        print("7. Exit")
+
+        choice = input("Choose an option (1-7): ").strip()
+
+        if choice == "1":
+            add_student(students)
+        elif choice == "2":
+            view_students(students)
+        elif choice == "3":
+            search_student(students)
+        elif choice == "4":
+            update_student(students)
+        elif choice == "5":
+            delete_student(students)
+        elif choice == "6":
+            show_statistics(students)
+        elif choice == "7":
+            print("Thank you for using the system!")
+            break
+        else:
+            print("Invalid choice. Please select 1-7.")
+
+
+if __name__ == "__main__":
+    main()
