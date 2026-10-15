@@ -1,0 +1,282 @@
+
+import json
+import os
+from datetime import datetime
+from collections import defaultdict
+
+FILE_NAME = "expenses.json"
+CATEGORIES = [
+    "Food", "Travel", "Shopping",
+    "Education", "Bills", "Health", "Other"
+]
+
+
+def load_data():
+    if os.path.exists(FILE_NAME):
+        try:
+            with open(FILE_NAME, "r") as file:
+                return json.load(file)
+        except (json.JSONDecodeError, OSError):
+            print("Warning: Could not read saved data.")
+    return {"expenses": [], "budget": 0.0}
+
+
+def save_data(data):
+    with open(FILE_NAME, "w") as file:
+        json.dump(data, file, indent=4)
+
+
+def get_amount(message):
+    try:
+        amount = float(input(message))
+        if amount <= 0:
+            print("Amount must be greater than zero.")
+            return None
+        return round(amount, 2)
+    except ValueError:
+        print("Please enter a valid number.")
+        return None
+
+
+def add_expense(data):
+    print("\n--- Add New Expense ---")
+
+    title = input("Expense name: ").strip()
+    if not title:
+        print("Expense name cannot be empty.")
+        return
+
+    print("\nCategories:")
+    for i, category in enumerate(CATEGORIES, 1):
+        print(f"{i}. {category}")
+
+    try:
+        choice = int(input("Choose category number: "))
+        if not 1 <= choice <= len(CATEGORIES):
+            print("Invalid category.")
+            return
+    except ValueError:
+        print("Enter a valid category number.")
+        return
+
+    amount = get_amount("Enter amount: ")
+    if amount is None:
+        return
+
+    date_text = input(
+        "Date (YYYY-MM-DD, press Enter for today): "
+    ).strip()
+
+    if date_text:
+        try:
+            expense_date = datetime.strptime(
+                date_text, "%Y-%m-%d"
+            ).date().isoformat()
+        except ValueError:
+            print("Invalid date format.")
+            return
+    else:
+        expense_date = datetime.today().date().isoformat()
+
+    expense = {
+        "id": max(
+            (item["id"] for item in data["expenses"]),
+            default=0
+        ) + 1,
+        "title": title,
+        "category": CATEGORIES[choice - 1],
+        "amount": amount,
+        "date": expense_date
+    }
+
+    data["expenses"].append(expense)
+    save_data(data)
+    print("Expense added successfully!")
+
+
+def view_expenses(data):
+    expenses = data["expenses"]
+
+    if not expenses:
+        print("\nNo expenses recorded.")
+        return
+
+    print("\n" + "-" * 78)
+    print(
+        f"{'ID':<6}{'Date':<14}{'Title':<22}"
+        f"{'Category':<16}{'Amount':>12}"
+    )
+    print("-" * 78)
+
+    for item in sorted(
+        expenses, key=lambda x: (x["date"], x["id"]), reverse=True
+    ):
+        print(
+            f"{item['id']:<6}"
+            f"{item['date']:<14}"
+            f"{item['title'][:20]:<22}"
+            f"{item['category']:<16}"
+            f"{item['amount']:>12.2f}"
+        )
+
+    print("-" * 78)
+    print(f"Total spending: {sum(x['amount'] for x in expenses):.2f}")
+
+
+def search_expenses(data):
+    keyword = input("Search by title or category: ").strip().lower()
+
+    if not keyword:
+        print("Enter a search keyword.")
+        return
+
+    results = [
+        item for item in data["expenses"]
+        if keyword in item["title"].lower()
+        or keyword in item["category"].lower()
+    ]
+
+    if not results:
+        print("No matching expenses found.")
+        return
+
+    for item in results:
+        print(
+            f"ID: {item['id']} | {item['date']} | "
+            f"{item['title']} | {item['category']} | "
+            f"Amount: {item['amount']:.2f}"
+        )
+
+
+def monthly_report(data):
+    month = input("Enter month (YYYY-MM): ").strip()
+
+    try:
+        datetime.strptime(month, "%Y-%m")
+    except ValueError:
+        print("Enter the month in YYYY-MM format.")
+        return
+
+    expenses = [
+        item for item in data["expenses"]
+        if item["date"].startswith(month)
+    ]
+
+    if not expenses:
+        print("No expenses found for this month.")
+        return
+
+    total = sum(item["amount"] for item in expenses)
+    categories = defaultdict(float)
+
+    for item in expenses:
+        categories[item["category"]] += item["amount"]
+
+    print(f"\n--- Report for {month} ---")
+    print(f"Total spending: {total:.2f}")
+    print(f"Number of expenses: {len(expenses)}")
+    print("\nCategory breakdown:")
+
+    for category, amount in sorted(
+        categories.items(), key=lambda x: x[1], reverse=True
+    ):
+        percentage = amount / total * 100
+        print(f"{category:<15} {amount:>10.2f} ({percentage:.1f}%)")
+
+
+def set_budget(data):
+    amount = get_amount("Enter monthly budget: ")
+    if amount is not None:
+        data["budget"] = amount
+        save_data(data)
+        print(f"Monthly budget set to {amount:.2f}")
+
+
+def check_budget(data):
+    budget = data.get("budget", 0)
+
+    if budget <= 0:
+        print("Set a monthly budget first.")
+        return
+
+    month = datetime.today().strftime("%Y-%m")
+
+    spent = sum(
+        item["amount"] for item in data["expenses"]
+        if item["date"].startswith(month)
+    )
+
+    print(f"\nBudget:   {budget:.2f}")
+    print(f"Spent:    {spent:.2f}")
+    print(f"Remaining: {budget - spent:.2f}")
+
+    if spent > budget:
+        print("WARNING: You have exceeded your budget!")
+    elif spent >= budget * 0.8:
+        print("Alert: You have used at least 80% of your budget.")
+    else:
+        print("You are within your budget.")
+
+
+def delete_expense(data):
+    try:
+        expense_id = int(input("Enter expense ID to delete: "))
+    except ValueError:
+        print("Enter a valid ID.")
+        return
+
+    for item in data["expenses"]:
+        if item["id"] == expense_id:
+            print(f"Selected: {item['title']} - {item['amount']:.2f}")
+            confirm = input("Delete this expense? (yes/no): ").lower()
+
+            if confirm == "yes":
+                data["expenses"].remove(item)
+                save_data(data)
+                print("Expense deleted.")
+            else:
+                print("Deletion cancelled.")
+            return
+
+    print("Expense ID not found.")
+
+
+def main():
+    data = load_data()
+
+    while True:
+        print("\n====== PERSONAL EXPENSE TRACKER ======")
+        print("1. Add Expense")
+        print("2. View All Expenses")
+        print("3. Search Expenses")
+        print("4. Monthly Report")
+        print("5. Set Monthly Budget")
+        print("6. Check Budget")
+        print("7. Delete Expense")
+        print("8. Exit")
+
+        choice = input("Enter your choice: ").strip()
+
+        if choice == "1":
+            add_expense(data)
+        elif choice == "2":
+            view_expenses(data)
+        elif choice == "3":
+            search_expenses(data)
+        elif choice == "4":
+            monthly_report(data)
+        elif choice == "5":
+            set_budget(data)
+        elif choice == "6":
+            check_budget(data)
+        elif choice == "7":
+            delete_expense(data)
+        elif choice == "8":
+            print("Your expense data has been saved. Goodbye!")
+            break
+        else:
+            print("Invalid choice. Select 1-8.")
+
+
+if __name__ == "__main__":
+    main()
